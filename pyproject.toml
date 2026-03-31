@@ -1,0 +1,32 @@
+[build-system]
+requires = ["setuptools>=80.0.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "telegram-bot"
+version = "0.1.0"
+description = "Backend-driven Telegram bot for Reflebot"
+readme = "README.md"
+requires-python = ">=3.13"
+dependencies = [
+    "aio-pika>=9.6.2",
+    "aiogram>=3.26.0",
+    "httpx>=0.28.1",
+    "pydantic-settings>=2.13.1",
+]
+
+[project.scripts]
+telegram-bot = "reflebot_telegram_bot.main:main"
+
+[dependency-groups]
+dev = [
+    "pytest>=8.4.2",
+    "pytest-asyncio>=1.2.0",
+]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
+
+[tool.setuptools.packages.find]
+include = ["reflebot_telegram_bot*"]

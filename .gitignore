@@ -1,0 +1,25 @@
+# Python-generated files
+__pycache__/
+*.py[oc]
+build/
+dist/
+wheels/
+*.egg-info
+
+# Virtual environments
+.venv
+
+# Local settings
+.env
+
+# Test caches
+.pytest_cache/
+
+.agents/*
+.hypothesis/*
+.kiro/*
+.pytest_cache/*
+.vscode/*
+.codex
+.specs/
+skills-lock.json

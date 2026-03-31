@@ -1,0 +1,1 @@
+"""Max platform adapter skeleton."""

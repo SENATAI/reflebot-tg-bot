@@ -1,0 +1,1 @@
+"""Platform-agnostic bot core."""
