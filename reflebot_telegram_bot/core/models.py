@@ -37,7 +37,8 @@ class PlatformUpdate:
 @dataclass(slots=True)
 class PlatformButton:
     text: str
-    action: str
+    action: str | None = None
+    url: str | None = None
 
 
 @dataclass(slots=True)

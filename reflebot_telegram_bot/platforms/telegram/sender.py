@@ -126,9 +126,17 @@ class TelegramSender(PlatformSender):
     def _build_keyboard(buttons: list[PlatformButton]) -> InlineKeyboardMarkup | None:
         if not buttons:
             return None
+        inline_keyboard: list[list[InlineKeyboardButton]] = []
+        for button in buttons:
+            if button.url:
+                inline_keyboard.append([InlineKeyboardButton(text=button.text, url=button.url)])
+                continue
+            if button.action:
+                inline_keyboard.append(
+                    [InlineKeyboardButton(text=button.text, callback_data=button.action)]
+                )
+        if not inline_keyboard:
+            return None
         return InlineKeyboardMarkup(
-            inline_keyboard=[
-                [InlineKeyboardButton(text=button.text, callback_data=button.action)]
-                for button in buttons
-            ]
+            inline_keyboard=inline_keyboard
         )

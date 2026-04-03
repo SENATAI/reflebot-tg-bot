@@ -49,7 +49,14 @@ class ResponsePlanner:
 
     @staticmethod
     def _map_buttons(buttons: list[BackendButton]) -> list[PlatformButton]:
-        return [PlatformButton(text=button.text, action=button.action) for button in buttons]
+        return [
+            PlatformButton(
+                text=button.text,
+                action=button.action,
+                url=button.url,
+            )
+            for button in buttons
+        ]
 
     @staticmethod
     def _map_files(files: list[BackendFile]) -> list[PlatformMedia]:

@@ -5,7 +5,8 @@ from pydantic import BaseModel, Field
 
 class BackendButton(BaseModel):
     text: str
-    action: str
+    action: str | None = None
+    url: str | None = None
 
 
 class BackendFile(BaseModel):

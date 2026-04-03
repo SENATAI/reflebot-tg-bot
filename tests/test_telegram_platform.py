@@ -107,14 +107,20 @@ async def test_sender_sends_batch_with_edit_and_followups() -> None:
         primary_message=PlatformMessage(
             text="Main",
             parse_mode="HTML",
-            buttons=[PlatformButton(text="Next", action="next")],
+            buttons=[
+                PlatformButton(text="Next", action="next"),
+                PlatformButton(text="Support", url="https://t.me/kartbllansh"),
+            ],
             media=[PlatformMedia(kind="presentation", platform_file_ref="presentation-id")],
             edit_target_message_id="77",
         ),
         follow_up_messages=[
             PlatformMessage(
                 text="Follow up",
-                buttons=[PlatformButton(text="Menu", action="menu")],
+                buttons=[
+                    PlatformButton(text="Menu", action="menu"),
+                    PlatformButton(text="Support", url="https://t.me/kartbllansh"),
+                ],
                 media=[PlatformMedia(kind="recording", platform_file_ref="video-id")],
             )
         ],
@@ -124,10 +130,16 @@ async def test_sender_sends_batch_with_edit_and_followups() -> None:
     await sender.answer_interaction("cbq-id")
 
     bot.edit_message_text.assert_awaited_once()
+    primary_keyboard = bot.edit_message_text.await_args.kwargs["reply_markup"]
+    assert primary_keyboard.inline_keyboard[0][0].callback_data == "next"
+    assert primary_keyboard.inline_keyboard[1][0].url == "https://t.me/kartbllansh"
     assert bot.send_message.await_count == 1
     follow_up_call = bot.send_message.await_args_list[0]
     assert follow_up_call.kwargs["text"] == "Follow up"
     assert follow_up_call.kwargs["reply_markup"] is not None
+    follow_up_keyboard = follow_up_call.kwargs["reply_markup"]
+    assert follow_up_keyboard.inline_keyboard[0][0].callback_data == "menu"
+    assert follow_up_keyboard.inline_keyboard[1][0].url == "https://t.me/kartbllansh"
     bot.send_document.assert_awaited_once()
     bot.send_video.assert_awaited_once()
     bot.answer_callback_query.assert_awaited_once()

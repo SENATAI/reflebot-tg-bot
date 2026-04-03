@@ -20,13 +20,19 @@ def make_action_response() -> ActionResponse:
     return ActionResponse(
         message="Экран",
         parse_mode="HTML",
-        buttons=[BackendButton(text="Дальше", action="next")],
+        buttons=[
+            BackendButton(text="Дальше", action="next"),
+            BackendButton(text="Тех. поддержка", url="https://t.me/kartbllansh"),
+        ],
         files=[BackendFile(telegram_file_id="presentation-id", kind="presentation")],
         dialog_messages=[
             DialogMessage(
                 message="Follow up",
                 parse_mode="HTML",
-                buttons=[BackendButton(text="Меню", action="menu")],
+                buttons=[
+                    BackendButton(text="Меню", action="menu"),
+                    BackendButton(text="Тех. поддержка", url="https://t.me/kartbllansh"),
+                ],
                 files=[BackendFile(telegram_file_id="recording-id", kind="recording")],
             )
         ],
@@ -40,9 +46,11 @@ def test_planner_maps_backend_response_to_platform_batch() -> None:
     assert batch.primary_message.text == "Экран"
     assert batch.primary_message.edit_target_message_id == "77"
     assert batch.primary_message.buttons[0].action == "next"
+    assert batch.primary_message.buttons[1].url == "https://t.me/kartbllansh"
     assert batch.primary_message.media[0].platform_file_ref == "presentation-id"
     assert batch.follow_up_messages[0].text == "Follow up"
     assert batch.follow_up_messages[0].buttons[0].action == "menu"
+    assert batch.follow_up_messages[0].buttons[1].url == "https://t.me/kartbllansh"
     assert batch.follow_up_messages[0].media[0].kind == "recording"
 
 
