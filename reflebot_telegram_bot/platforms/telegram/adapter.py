@@ -7,6 +7,7 @@ from reflebot_telegram_bot.core.use_cases.button import ButtonUseCase
 from reflebot_telegram_bot.core.use_cases.file import FileUseCase
 from reflebot_telegram_bot.core.use_cases.start import StartUseCase
 from reflebot_telegram_bot.core.use_cases.text import TextUseCase
+from reflebot_telegram_bot.platforms.telegram.commands import register_menu_commands
 from reflebot_telegram_bot.platforms.telegram.router import build_telegram_router
 from reflebot_telegram_bot.platforms.telegram.sender import TelegramSender
 from reflebot_telegram_bot.platforms.telegram.update_mapper import TelegramUpdateMapper
@@ -36,3 +37,8 @@ class TelegramAdapter:
             planner=ResponsePlanner(),
             settings=settings,
         )
+
+        self._bot = bot
+
+    async def startup(self) -> None:
+        await register_menu_commands(self._bot)

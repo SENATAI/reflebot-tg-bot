@@ -78,6 +78,7 @@ class Application:
 
     async def run(self) -> None:
         logger.info("Starting application")
+        await self._build_platform_bundle().startup()
         await self.consumer.start()
         try:
             await self.dispatcher.start_polling(

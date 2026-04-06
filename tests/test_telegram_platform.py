@@ -6,14 +6,19 @@ from unittest.mock import AsyncMock
 import pytest
 
 from reflebot_telegram_bot.api.errors import BackendTransportError
+from reflebot_telegram_bot.platforms.telegram.commands import build_menu_commands, register_menu_commands
 from reflebot_telegram_bot.core.models import PlatformButton, PlatformIdentity, PlatformMedia, PlatformMessage, PlatformMessageBatch, UseCaseResult
 from reflebot_telegram_bot.core.planner import ResponsePlanner
 from reflebot_telegram_bot.platforms.telegram.router import (
     handle_callback_query,
     handle_file_message,
     handle_start_message,
+    handle_support_message,
     handle_text_message,
     should_forward_text_message,
+    SUPPORT_BUTTON_TEXT,
+    SUPPORT_MESSAGE,
+    SUPPORT_URL,
 )
 from reflebot_telegram_bot.platforms.telegram.sender import TelegramSender
 from reflebot_telegram_bot.platforms.telegram.update_mapper import TelegramUpdateMapper
@@ -246,6 +251,42 @@ async def test_start_handler_logs_backend_error_with_invite_payload(settings, ca
     sender.send_batch.assert_awaited_once()
 
 
+@pytest.mark.asyncio()
+async def test_support_handler_sends_local_support_button() -> None:
+    bot = SimpleNamespace(download=AsyncMock())
+    update_mapper = TelegramUpdateMapper(bot)
+    sender = AsyncMock()
+    message = SimpleNamespace(
+        from_user=SimpleNamespace(id=1, username="tester"),
+        chat=SimpleNamespace(id=1),
+        message_id=5,
+    )
+
+    await handle_support_message(message, update_mapper, sender)
+
+    sender.send_batch.assert_awaited_once()
+    identity, batch = sender.send_batch.await_args.args
+    assert identity.chat_id == "1"
+    assert batch.primary_message.text == SUPPORT_MESSAGE
+    assert batch.primary_message.buttons[0].text == SUPPORT_BUTTON_TEXT
+    assert batch.primary_message.buttons[0].url == SUPPORT_URL
+
+
+@pytest.mark.asyncio()
+async def test_register_menu_commands_sets_expected_commands() -> None:
+    bot = SimpleNamespace(set_my_commands=AsyncMock())
+
+    await register_menu_commands(bot)
+
+    bot.set_my_commands.assert_awaited_once()
+    commands = bot.set_my_commands.await_args.args[0]
+    assert [(command.command, command.description) for command in commands] == [
+        ("start", "Главное меню"),
+        ("join_course", "Записаться на курс"),
+        ("support", "Тех. поддержка"),
+    ]
+
+
 def test_should_forward_text_message_allows_join_course_commands() -> None:
     assert should_forward_text_message("join_course") is True
     assert should_forward_text_message("/join_course") is True
@@ -255,6 +296,17 @@ def test_should_forward_text_message_allows_join_course_commands() -> None:
 
 def test_should_forward_text_message_ignores_other_slash_commands() -> None:
     assert should_forward_text_message("/start") is False
+    assert should_forward_text_message("/support") is False
     assert should_forward_text_message("/help") is False
     assert should_forward_text_message("/unknown value") is False
     assert should_forward_text_message(None) is False
+
+
+def test_build_menu_commands_returns_expected_commands() -> None:
+    commands = build_menu_commands()
+
+    assert [(command.command, command.description) for command in commands] == [
+        ("start", "Главное меню"),
+        ("join_course", "Записаться на курс"),
+        ("support", "Тех. поддержка"),
+    ]

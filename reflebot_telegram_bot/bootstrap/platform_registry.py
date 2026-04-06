@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 
 from aiogram import Bot, Router
@@ -15,6 +16,7 @@ class PlatformBundle:
     name: str
     sender: PlatformSender
     router: Router
+    startup: Callable[[], Awaitable[None]]
 
 
 def create_backend_identity_mapper(settings: Settings) -> BackendIdentityMapper:
@@ -48,6 +50,7 @@ def create_platform_bundle(
             name="telegram",
             sender=adapter.sender,
             router=adapter.router,
+            startup=adapter.startup,
         )
 
     raise NotImplementedError(

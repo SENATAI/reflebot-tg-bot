@@ -40,7 +40,8 @@ def test_create_backend_identity_mapper_raises_for_unsupported_platform(settings
         create_backend_identity_mapper(unsupported)
 
 
-def test_create_platform_bundle_for_telegram(settings) -> None:
+@pytest.mark.asyncio()
+async def test_create_platform_bundle_for_telegram(settings) -> None:
     bot = SimpleNamespace(
         download=AsyncMock(),
         edit_message_text=AsyncMock(),
@@ -49,6 +50,7 @@ def test_create_platform_bundle_for_telegram(settings) -> None:
         send_video=AsyncMock(),
         send_video_note=AsyncMock(),
         answer_callback_query=AsyncMock(),
+        set_my_commands=AsyncMock(),
     )
     bundle = create_platform_bundle(
         settings=settings,
@@ -62,3 +64,5 @@ def test_create_platform_bundle_for_telegram(settings) -> None:
     assert bundle.name == "telegram"
     assert bundle.router is not None
     assert bundle.sender.platform_name == "telegram"
+    await bundle.startup()
+    bot.set_my_commands.assert_awaited_once()

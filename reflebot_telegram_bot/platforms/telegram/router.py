@@ -3,11 +3,12 @@ from __future__ import annotations
 import logging
 
 from aiogram import F, Router
-from aiogram.filters import CommandStart
+from aiogram.filters import Command, CommandStart
 from aiogram.types import CallbackQuery, Message
 
 from reflebot_telegram_bot.backend.compatibility import MissingPlatformUsernameError
 from reflebot_telegram_bot.backend.errors import BackendTransportError, resolve_user_message
+from reflebot_telegram_bot.core.models import PlatformButton, PlatformMessage, PlatformMessageBatch
 from reflebot_telegram_bot.core.planner import ResponsePlanner
 from reflebot_telegram_bot.core.use_cases.button import ButtonUseCase
 from reflebot_telegram_bot.core.use_cases.file import FileUseCase
@@ -21,6 +22,10 @@ from reflebot_telegram_bot.platforms.telegram.update_mapper import (
 from reflebot_telegram_bot.settings import Settings
 
 logger = logging.getLogger(__name__)
+
+SUPPORT_URL = "https://t.me/kartbllansh"
+SUPPORT_MESSAGE = "Связаться с тех. поддержкой можно по кнопке ниже."
+SUPPORT_BUTTON_TEXT = "🛠 Открыть тех. поддержку"
 
 
 async def handle_start_message(
@@ -152,6 +157,28 @@ async def handle_file_message(
         )
 
 
+async def handle_support_message(
+    message: Message,
+    update_mapper: TelegramUpdateMapper,
+    sender: TelegramSender,
+) -> None:
+    identity = update_mapper._identity_from_message(message)
+    await sender.send_batch(
+        identity,
+        PlatformMessageBatch(
+            primary_message=PlatformMessage(
+                text=SUPPORT_MESSAGE,
+                buttons=[
+                    PlatformButton(
+                        text=SUPPORT_BUTTON_TEXT,
+                        url=SUPPORT_URL,
+                    )
+                ],
+            )
+        ),
+    )
+
+
 def build_telegram_router(
     *,
     update_mapper: TelegramUpdateMapper,
@@ -174,6 +201,14 @@ def build_telegram_router(
             sender,
             planner,
             settings,
+        )
+
+    @router.message(Command("support"))
+    async def support_handler(message: Message) -> None:
+        await handle_support_message(
+            message,
+            update_mapper,
+            sender,
         )
 
     @router.callback_query()
