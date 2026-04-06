@@ -23,7 +23,7 @@ from reflebot_telegram_bot.settings import Settings
 
 logger = logging.getLogger(__name__)
 
-SUPPORT_URL = "https://t.me/kartbllansh"
+SUPPORT_URL = "https://t.me/mark0vartem"
 SUPPORT_MESSAGE = "Связаться с тех. поддержкой можно по кнопке ниже."
 SUPPORT_BUTTON_TEXT = "🛠 Открыть тех. поддержку"
 
