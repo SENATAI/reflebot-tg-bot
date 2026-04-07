@@ -3,6 +3,7 @@ from __future__ import annotations
 from aiogram import Bot
 
 from reflebot_telegram_bot.core.planner import ResponsePlanner
+from reflebot_telegram_bot.core.ports import BackendWorkflowPort
 from reflebot_telegram_bot.core.use_cases.button import ButtonUseCase
 from reflebot_telegram_bot.core.use_cases.file import FileUseCase
 from reflebot_telegram_bot.core.use_cases.start import StartUseCase
@@ -20,6 +21,7 @@ class TelegramAdapter:
         *,
         bot: Bot,
         settings: Settings,
+        backend_workflow: BackendWorkflowPort,
         start_use_case: StartUseCase,
         button_use_case: ButtonUseCase,
         text_use_case: TextUseCase,
@@ -29,6 +31,7 @@ class TelegramAdapter:
         self.update_mapper = TelegramUpdateMapper(bot)
         self.router = build_telegram_router(
             update_mapper=self.update_mapper,
+            backend_workflow=backend_workflow,
             start_use_case=start_use_case,
             button_use_case=button_use_case,
             text_use_case=text_use_case,

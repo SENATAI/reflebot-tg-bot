@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 from datetime import UTC, datetime
 
 from aiogram import Bot
@@ -15,6 +16,8 @@ from reflebot_telegram_bot.core.models import (
     PlatformMessageBatch,
 )
 from reflebot_telegram_bot.core.ports import PlatformCapabilities, PlatformSender
+
+logger = logging.getLogger(__name__)
 
 
 class TelegramSender(PlatformSender):
@@ -61,6 +64,20 @@ class TelegramSender(PlatformSender):
             sent_at=datetime.now(UTC),
         )
 
+    async def edit_batch(
+        self,
+        identity: PlatformIdentity,
+        batch: PlatformMessageBatch,
+    ) -> PlatformDeliveryResult:
+        primary_message_id = await self._edit_primary_message_strict(
+            identity,
+            batch.primary_message,
+        )
+        return PlatformDeliveryResult(
+            primary_message_id=str(primary_message_id) if primary_message_id is not None else None,
+            sent_at=datetime.now(UTC),
+        )
+
     async def answer_interaction(self, interaction_id: str | None) -> None:
         if interaction_id is None:
             return
@@ -99,6 +116,48 @@ class TelegramSender(PlatformSender):
             reply_markup=keyboard,
         )
         return getattr(sent, "message_id", None)
+
+    async def _edit_primary_message_strict(
+        self,
+        identity: PlatformIdentity,
+        message: PlatformMessage,
+    ) -> int | None:
+        if message.edit_target_message_id is None:
+            raise ValueError("edit_target_message_id is required for strict message edit.")
+
+        try:
+            edited = await self._bot.edit_message_text(
+                chat_id=int(identity.chat_id),
+                message_id=int(message.edit_target_message_id),
+                text=message.text or "",
+                parse_mode=message.parse_mode,
+                reply_markup=self._build_keyboard(message.buttons),
+            )
+        except TelegramBadRequest as exc:
+            if "message is not modified" in str(exc).lower():
+                logger.info(
+                    (
+                        "Telegram message edit skipped because message is not modified "
+                        "chat_id=%s message_id=%s buttons_count=%s text_length=%s"
+                    ),
+                    identity.chat_id,
+                    message.edit_target_message_id,
+                    len(message.buttons),
+                    len(message.text or ""),
+                )
+                return int(message.edit_target_message_id)
+            raise
+        logger.info(
+            (
+                "Telegram message edited successfully chat_id=%s "
+                "message_id=%s buttons_count=%s text_length=%s"
+            ),
+            identity.chat_id,
+            message.edit_target_message_id,
+            len(message.buttons),
+            len(message.text or ""),
+        )
+        return getattr(edited, "message_id", int(message.edit_target_message_id))
 
     async def _send_media(self, identity: PlatformIdentity, media: PlatformMedia) -> None:
         file_ref = media.platform_file_ref

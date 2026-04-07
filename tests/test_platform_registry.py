@@ -55,6 +55,7 @@ async def test_create_platform_bundle_for_telegram(settings) -> None:
     bundle = create_platform_bundle(
         settings=settings,
         bot=bot,
+        backend_workflow=AsyncMock(),
         start_use_case=AsyncMock(),
         button_use_case=AsyncMock(),
         text_use_case=AsyncMock(),

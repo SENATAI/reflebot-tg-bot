@@ -1,7 +1,10 @@
 from __future__ import annotations
 
 from reflebot_telegram_bot.api.schemas import ActionResponse, BackendButton, BackendFile, DialogMessage
-from reflebot_telegram_bot.broker.schemas import ReflectionPromptCommand
+from reflebot_telegram_bot.broker.schemas import (
+    ReflectionPromptCommand,
+    UpdateReflectionPromptCommand,
+)
 from reflebot_telegram_bot.core.models import (
     PlatformButton,
     PlatformMedia,
@@ -33,13 +36,26 @@ class ResponsePlanner:
             )
             for dialog in response.dialog_messages
         ]
-        return PlatformMessageBatch(primary_message=primary, follow_up_messages=follow_up)
+        return PlatformMessageBatch(
+            primary_message=primary,
+            primary_message_tracking_key=(
+                response.message_tracking.tracking_key
+                if response.message_tracking is not None
+                else None
+            ),
+            follow_up_messages=follow_up,
+        )
 
     def from_reflection_prompt(self, command: ReflectionPromptCommand) -> PlatformMessageBatch:
         primary = PlatformMessage(
             text=command.message_text,
             parse_mode=command.parse_mode,
             buttons=self._map_buttons(command.buttons),
+            edit_target_message_id=(
+                str(command.telegram_message_id)
+                if isinstance(command, UpdateReflectionPromptCommand)
+                else None
+            ),
         )
         return PlatformMessageBatch(primary_message=primary)
 

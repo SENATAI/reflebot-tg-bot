@@ -33,6 +33,12 @@ class PlatformSender(Protocol):
         batch: PlatformMessageBatch,
     ) -> PlatformDeliveryResult: ...
 
+    async def edit_batch(
+        self,
+        identity: PlatformIdentity,
+        batch: PlatformMessageBatch,
+    ) -> PlatformDeliveryResult: ...
+
     async def answer_interaction(self, interaction_id: str | None) -> None: ...
 
     async def download_binary_attachment(self, file_ref: str) -> bytes: ...
@@ -73,3 +79,10 @@ class BackendWorkflowPort(Protocol):
         identity: PlatformIdentity,
         attachment: PlatformAttachment,
     ) -> ActionResponse: ...
+
+    async def notify_message_delivered(
+        self,
+        identity: PlatformIdentity,
+        tracking_key: str,
+        telegram_message_id: int,
+    ) -> None: ...

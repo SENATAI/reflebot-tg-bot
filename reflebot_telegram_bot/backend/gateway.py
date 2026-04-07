@@ -4,6 +4,7 @@ from reflebot_telegram_bot.backend.client import BackendApiClient
 from reflebot_telegram_bot.backend.schemas import (
     ActionResponse,
     LoginRequest,
+    MessageDeliveredRequest,
     LoginResponse,
     TextActionRequest,
 )
@@ -74,3 +75,19 @@ class BackendGateway(BackendWorkflowPort):
             telegram_id=self._identity_mapper.platform_user_id(identity),
         )
         return ActionResponse.model_validate(payload)
+
+    async def notify_message_delivered(
+        self,
+        identity: PlatformIdentity,
+        tracking_key: str,
+        telegram_message_id: int,
+    ) -> None:
+        payload = MessageDeliveredRequest(
+            tracking_key=tracking_key,
+            telegram_message_id=telegram_message_id,
+        ).model_dump(mode="json")
+        await self._api_client.post_json(
+            "/actions/message-delivered",
+            payload=payload,
+            telegram_id=self._identity_mapper.platform_user_id(identity),
+        )

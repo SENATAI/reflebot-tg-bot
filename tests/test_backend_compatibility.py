@@ -52,6 +52,7 @@ async def test_backend_gateway_uses_compatibility_mapping_for_all_actions() -> N
         {"message": "Login"},
         {"message": "Button"},
         {"message": "Text"},
+        {},
     ]
     api_client.post_multipart.return_value = {"message": "File"}
 
@@ -62,6 +63,11 @@ async def test_backend_gateway_uses_compatibility_mapping_for_all_actions() -> N
         identity,
         PlatformAttachment(kind="platform_media", platform_file_ref="video-id"),
     )
+    await gateway.notify_message_delivered(
+        identity,
+        "reflection_status:123",
+        456,
+    )
 
     assert api_client.post_json.await_args_list[0].args[0] == "/auth/tester/login"
     assert api_client.post_json.await_args_list[0].kwargs["payload"] == {
@@ -70,4 +76,10 @@ async def test_backend_gateway_uses_compatibility_mapping_for_all_actions() -> N
     }
     assert api_client.post_json.await_args_list[1].args[0] == "/actions/button/next"
     assert api_client.post_json.await_args_list[2].args[0] == "/actions/text"
+    assert api_client.post_json.await_args_list[3].args[0] == "/actions/message-delivered"
+    assert api_client.post_json.await_args_list[3].kwargs["payload"] == {
+        "tracking_key": "reflection_status:123",
+        "telegram_message_id": 456,
+    }
+    assert api_client.post_json.await_args_list[3].kwargs["telegram_id"] == 42
     api_client.post_multipart.assert_awaited_once()

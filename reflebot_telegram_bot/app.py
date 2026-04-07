@@ -58,6 +58,7 @@ class Application:
             self.platform_bundle = create_platform_bundle(
                 settings=self.settings,
                 bot=self.bot,
+                backend_workflow=self.backend_gateway,
                 start_use_case=self.start_use_case,
                 button_use_case=self.button_use_case,
                 text_use_case=self.text_use_case,

@@ -4,6 +4,7 @@ from types import SimpleNamespace
 from unittest.mock import AsyncMock
 
 import pytest
+from aiogram.exceptions import TelegramBadRequest
 
 from reflebot_telegram_bot.api.errors import BackendTransportError
 from reflebot_telegram_bot.platforms.telegram.commands import build_menu_commands, register_menu_commands
@@ -152,14 +153,75 @@ async def test_sender_sends_batch_with_edit_and_followups() -> None:
 
 
 @pytest.mark.asyncio()
+async def test_sender_edits_existing_message_without_fallback_send() -> None:
+    bot = SimpleNamespace(
+        edit_message_text=AsyncMock(return_value=SimpleNamespace(message_id=456)),
+        send_message=AsyncMock(),
+        send_document=AsyncMock(),
+        send_video=AsyncMock(),
+        send_video_note=AsyncMock(),
+        answer_callback_query=AsyncMock(),
+        download=AsyncMock(),
+    )
+    sender = TelegramSender(bot)
+    identity = PlatformIdentity(platform="telegram", user_id="1", chat_id="1")
+    batch = PlatformMessageBatch(
+        primary_message=PlatformMessage(
+            text="Updated",
+            parse_mode="HTML",
+            buttons=[PlatformButton(text="Support", url="https://t.me/kartbllansh")],
+            edit_target_message_id="456",
+        )
+    )
+
+    result = await sender.edit_batch(identity, batch)
+
+    bot.edit_message_text.assert_awaited_once()
+    bot.send_message.assert_not_awaited()
+    assert result.primary_message_id == "456"
+
+
+@pytest.mark.asyncio()
+async def test_sender_treats_message_not_modified_as_success_for_edit_batch() -> None:
+    bot = SimpleNamespace(
+        edit_message_text=AsyncMock(
+            side_effect=TelegramBadRequest(SimpleNamespace(), "Bad Request: message is not modified")
+        ),
+        send_message=AsyncMock(),
+        send_document=AsyncMock(),
+        send_video=AsyncMock(),
+        send_video_note=AsyncMock(),
+        answer_callback_query=AsyncMock(),
+        download=AsyncMock(),
+    )
+    sender = TelegramSender(bot)
+    identity = PlatformIdentity(platform="telegram", user_id="1", chat_id="1")
+    batch = PlatformMessageBatch(
+        primary_message=PlatformMessage(
+            text="Updated",
+            edit_target_message_id="456",
+        )
+    )
+
+    result = await sender.edit_batch(identity, batch)
+
+    bot.send_message.assert_not_awaited()
+    assert result.primary_message_id == "456"
+
+
+@pytest.mark.asyncio()
 async def test_router_wiring_calls_use_cases_and_sender(settings) -> None:
     bot = SimpleNamespace(download=AsyncMock())
     update_mapper = TelegramUpdateMapper(bot)
+    backend_workflow = AsyncMock()
     sender = AsyncMock()
     planner = ResponsePlanner()
     use_case_result = UseCaseResult(
         identity=PlatformIdentity(platform="telegram", user_id="1", chat_id="1", username="tester"),
-        batch=PlatformMessageBatch(primary_message=PlatformMessage(text="OK")),
+        batch=PlatformMessageBatch(
+            primary_message=PlatformMessage(text="OK"),
+            primary_message_tracking_key="reflection_status:123",
+        ),
     )
     start_use_case = AsyncMock()
     start_use_case.execute.return_value = use_case_result
@@ -197,10 +259,20 @@ async def test_router_wiring_calls_use_cases_and_sender(settings) -> None:
         video_note=SimpleNamespace(file_id="video-note-id"),
     )
 
-    await handle_start_message(start_message, update_mapper, start_use_case, sender, planner, settings)
-    await handle_callback_query(callback, update_mapper, button_use_case, sender, planner, settings)
-    await handle_text_message(text_message, update_mapper, text_use_case, sender, planner, settings)
-    await handle_file_message(file_message, update_mapper, file_use_case, sender, planner, settings)
+    sender.send_batch.return_value = SimpleNamespace(primary_message_id="321", sent_at=None)
+
+    await handle_start_message(
+        start_message, update_mapper, backend_workflow, start_use_case, sender, planner, settings
+    )
+    await handle_callback_query(
+        callback, update_mapper, backend_workflow, button_use_case, sender, planner, settings
+    )
+    await handle_text_message(
+        text_message, update_mapper, backend_workflow, text_use_case, sender, planner, settings
+    )
+    await handle_file_message(
+        file_message, update_mapper, backend_workflow, file_use_case, sender, planner, settings
+    )
 
     start_use_case.execute.assert_awaited_once()
     start_update = start_use_case.execute.await_args.args[0]
@@ -210,12 +282,14 @@ async def test_router_wiring_calls_use_cases_and_sender(settings) -> None:
     file_use_case.execute.assert_awaited_once()
     assert sender.send_batch.await_count == 4
     sender.answer_interaction.assert_awaited_once_with("cbq-id")
+    assert backend_workflow.notify_message_delivered.await_count == 4
 
 
 @pytest.mark.asyncio()
 async def test_start_handler_logs_backend_error_with_invite_payload(settings, caplog) -> None:
     bot = SimpleNamespace(download=AsyncMock())
     update_mapper = TelegramUpdateMapper(bot)
+    backend_workflow = AsyncMock()
     sender = AsyncMock()
     planner = ResponsePlanner()
     start_use_case = AsyncMock()
@@ -236,6 +310,7 @@ async def test_start_handler_logs_backend_error_with_invite_payload(settings, ca
         await handle_start_message(
             start_message,
             update_mapper,
+            backend_workflow,
             start_use_case,
             sender,
             planner,
@@ -270,6 +345,93 @@ async def test_support_handler_sends_local_support_button() -> None:
     assert batch.primary_message.text == SUPPORT_MESSAGE
     assert batch.primary_message.buttons[0].text == SUPPORT_BUTTON_TEXT
     assert batch.primary_message.buttons[0].url == SUPPORT_URL
+
+
+@pytest.mark.asyncio()
+async def test_router_notifies_backend_when_primary_message_has_tracking(settings) -> None:
+    bot = SimpleNamespace(download=AsyncMock())
+    update_mapper = TelegramUpdateMapper(bot)
+    backend_workflow = AsyncMock()
+    sender = AsyncMock()
+    planner = ResponsePlanner()
+    start_use_case = AsyncMock()
+    start_use_case.execute.return_value = UseCaseResult(
+        identity=PlatformIdentity(platform="telegram", user_id="1", chat_id="1", username="tester"),
+        batch=PlatformMessageBatch(
+            primary_message=PlatformMessage(text="Tracked"),
+            primary_message_tracking_key="reflection_status:tracked",
+        ),
+    )
+    sender.send_batch.return_value = SimpleNamespace(primary_message_id="456", sent_at=None)
+    start_message = SimpleNamespace(
+        text="/start",
+        from_user=SimpleNamespace(id=1, username="tester"),
+        chat=SimpleNamespace(id=1),
+        message_id=1,
+    )
+
+    await handle_start_message(
+        start_message,
+        update_mapper,
+        backend_workflow,
+        start_use_case,
+        sender,
+        planner,
+        settings,
+    )
+
+    backend_workflow.notify_message_delivered.assert_awaited_once_with(
+        start_use_case.execute.return_value.identity,
+        "reflection_status:tracked",
+        456,
+    )
+
+
+@pytest.mark.asyncio()
+async def test_router_logs_tracking_notification_error_but_keeps_user_delivery(
+    settings,
+    caplog,
+) -> None:
+    bot = SimpleNamespace(download=AsyncMock())
+    update_mapper = TelegramUpdateMapper(bot)
+    backend_workflow = AsyncMock()
+    backend_workflow.notify_message_delivered.side_effect = BackendTransportError(
+        status_code=500,
+        detail="backend failed",
+        error_code="TRACKING_FAILED",
+        endpoint="/actions/message-delivered",
+    )
+    sender = AsyncMock()
+    planner = ResponsePlanner()
+    start_use_case = AsyncMock()
+    start_use_case.execute.return_value = UseCaseResult(
+        identity=PlatformIdentity(platform="telegram", user_id="1", chat_id="1", username="tester"),
+        batch=PlatformMessageBatch(
+            primary_message=PlatformMessage(text="Tracked"),
+            primary_message_tracking_key="reflection_status:tracked",
+        ),
+    )
+    sender.send_batch.return_value = SimpleNamespace(primary_message_id="456", sent_at=None)
+    start_message = SimpleNamespace(
+        text="/start",
+        from_user=SimpleNamespace(id=1, username="tester"),
+        chat=SimpleNamespace(id=1),
+        message_id=1,
+    )
+
+    with caplog.at_level("WARNING"):
+        await handle_start_message(
+            start_message,
+            update_mapper,
+            backend_workflow,
+            start_use_case,
+            sender,
+            planner,
+            settings,
+        )
+
+    assert "Failed to notify backend about delivered message" in caplog.text
+    sender.send_batch.assert_awaited_once()
 
 
 @pytest.mark.asyncio()

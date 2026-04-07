@@ -61,6 +61,7 @@ class PlatformMessage:
 @dataclass(slots=True)
 class PlatformMessageBatch:
     primary_message: PlatformMessage
+    primary_message_tracking_key: str | None = None
     follow_up_messages: list[PlatformMessage] = field(default_factory=list)
 
 

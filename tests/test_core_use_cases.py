@@ -5,8 +5,15 @@ from unittest.mock import AsyncMock
 
 import pytest
 
-from reflebot_telegram_bot.api.schemas import ActionResponse, BackendButton, BackendFile, DialogMessage, LoginResponse
-from reflebot_telegram_bot.broker.schemas import ReflectionPromptCommand
+from reflebot_telegram_bot.api.schemas import (
+    ActionResponse,
+    BackendButton,
+    BackendFile,
+    DialogMessage,
+    LoginResponse,
+    MessageTracking,
+)
+from reflebot_telegram_bot.broker.schemas import reflection_prompt_command_adapter
 from reflebot_telegram_bot.core.models import PlatformAttachment, PlatformIdentity, PlatformUpdate
 from reflebot_telegram_bot.core.planner import ResponsePlanner
 from reflebot_telegram_bot.core.use_cases.broker_prompt import BrokerPromptUseCase
@@ -36,6 +43,7 @@ def make_action_response() -> ActionResponse:
                 files=[BackendFile(telegram_file_id="recording-id", kind="recording")],
             )
         ],
+        message_tracking=MessageTracking(tracking_key="reflection_status:123"),
     )
 
 
@@ -48,6 +56,7 @@ def test_planner_maps_backend_response_to_platform_batch() -> None:
     assert batch.primary_message.buttons[0].action == "next"
     assert batch.primary_message.buttons[1].url == "https://t.me/kartbllansh"
     assert batch.primary_message.media[0].platform_file_ref == "presentation-id"
+    assert batch.primary_message_tracking_key == "reflection_status:123"
     assert batch.follow_up_messages[0].text == "Follow up"
     assert batch.follow_up_messages[0].buttons[0].action == "menu"
     assert batch.follow_up_messages[0].buttons[1].url == "https://t.me/kartbllansh"
@@ -109,7 +118,7 @@ async def test_button_text_and_file_use_cases_use_backend_workflow() -> None:
 
 @pytest.mark.asyncio()
 async def test_broker_prompt_use_case_builds_platform_identity_and_batch() -> None:
-    command = ReflectionPromptCommand.model_validate(
+    command = reflection_prompt_command_adapter.validate_python(
         {
             "event_type": "send_reflection_prompt",
             "delivery_id": "00000000-0000-0000-0000-000000000001",
@@ -128,3 +137,25 @@ async def test_broker_prompt_use_case_builds_platform_identity_and_batch() -> No
     assert result.identity.platform == "telegram"
     assert result.identity.chat_id == "123"
     assert result.batch.primary_message.buttons[0].action == "start"
+
+
+@pytest.mark.asyncio()
+async def test_broker_prompt_use_case_builds_edit_batch_for_update_prompt() -> None:
+    command = reflection_prompt_command_adapter.validate_python(
+        {
+            "event_type": "update_reflection_prompt",
+            "delivery_id": "00000000-0000-0000-0000-000000000001",
+            "telegram_id": 123,
+            "telegram_message_id": 456,
+            "lection_session_id": "00000000-0000-0000-0000-000000000003",
+            "message_text": "Prompt updated",
+            "parse_mode": "HTML",
+            "buttons": [{"text": "Support", "url": "https://t.me/kartbllansh"}],
+        }
+    )
+
+    result = await BrokerPromptUseCase(ResponsePlanner(), platform_name="telegram").execute(command)
+
+    assert result.identity.platform == "telegram"
+    assert result.batch.primary_message.edit_target_message_id == "456"
+    assert result.batch.primary_message.buttons[0].url == "https://t.me/kartbllansh"

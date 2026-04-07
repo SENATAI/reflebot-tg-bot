@@ -32,6 +32,7 @@ def create_platform_bundle(
     *,
     settings: Settings,
     bot: Bot,
+    backend_workflow,
     start_use_case,
     button_use_case,
     text_use_case,
@@ -41,6 +42,7 @@ def create_platform_bundle(
         adapter = TelegramAdapter(
             bot=bot,
             settings=settings,
+            backend_workflow=backend_workflow,
             start_use_case=start_use_case,
             button_use_case=button_use_case,
             text_use_case=text_use_case,

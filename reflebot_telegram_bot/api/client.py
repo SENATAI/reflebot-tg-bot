@@ -59,6 +59,8 @@ class BackendApiClient:
         endpoint: str,
     ) -> dict[str, Any]:
         if response.is_success:
+            if not response.content or not response.content.strip():
+                return {}
             return response.json()
 
         detail = response.text

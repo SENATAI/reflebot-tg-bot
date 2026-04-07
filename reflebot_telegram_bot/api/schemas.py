@@ -21,6 +21,10 @@ class DialogMessage(BaseModel):
     files: list[BackendFile] = Field(default_factory=list)
 
 
+class MessageTracking(BaseModel):
+    tracking_key: str
+
+
 class ActionResponse(BaseModel):
     message: str | None = None
     parse_mode: str | None = None
@@ -28,6 +32,7 @@ class ActionResponse(BaseModel):
     files: list[BackendFile] = Field(default_factory=list)
     dialog_messages: list[DialogMessage] = Field(default_factory=list)
     awaiting_input: bool = False
+    message_tracking: MessageTracking | None = None
 
 
 class LoginRequest(BaseModel):
@@ -47,6 +52,11 @@ class LoginResponse(ActionResponse):
 
 class TextActionRequest(BaseModel):
     text: str
+
+
+class MessageDeliveredRequest(BaseModel):
+    tracking_key: str
+    telegram_message_id: int
 
 
 class BackendError(BaseModel):

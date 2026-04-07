@@ -4,12 +4,12 @@ from datetime import datetime
 from typing import Literal
 from uuid import UUID
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, TypeAdapter
 
 from reflebot_telegram_bot.api.schemas import BackendButton
 
 
-class ReflectionPromptCommand(BaseModel):
+class SendReflectionPromptCommand(BaseModel):
     event_type: Literal["send_reflection_prompt"]
     delivery_id: UUID
     student_id: UUID
@@ -19,6 +19,22 @@ class ReflectionPromptCommand(BaseModel):
     parse_mode: str | None = "HTML"
     buttons: list[BackendButton] = Field(default_factory=list)
     scheduled_for: datetime | None = None
+
+
+class UpdateReflectionPromptCommand(BaseModel):
+    event_type: Literal["update_reflection_prompt"]
+    delivery_id: UUID
+    telegram_id: int
+    telegram_message_id: int
+    message_text: str
+    student_id: UUID | None = None
+    lection_session_id: UUID | None = None
+    parse_mode: str | None = "HTML"
+    buttons: list[BackendButton] = Field(default_factory=list)
+
+
+ReflectionPromptCommand = SendReflectionPromptCommand | UpdateReflectionPromptCommand
+reflection_prompt_command_adapter = TypeAdapter(ReflectionPromptCommand)
 
 
 class ReflectionPromptResultEvent(BaseModel):

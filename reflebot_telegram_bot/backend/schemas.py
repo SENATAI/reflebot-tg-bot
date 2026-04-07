@@ -6,6 +6,8 @@ from reflebot_telegram_bot.api.schemas import (
     DialogMessage,
     LoginRequest,
     LoginResponse,
+    MessageDeliveredRequest,
+    MessageTracking,
     TextActionRequest,
 )
 
@@ -17,5 +19,7 @@ __all__ = [
     "DialogMessage",
     "LoginRequest",
     "LoginResponse",
+    "MessageDeliveredRequest",
+    "MessageTracking",
     "TextActionRequest",
 ]
