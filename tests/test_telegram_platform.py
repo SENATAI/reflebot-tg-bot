@@ -98,6 +98,7 @@ async def test_update_mapper_extracts_start_payload_with_bot_username() -> None:
 
 @pytest.mark.asyncio()
 async def test_sender_sends_batch_with_edit_and_followups() -> None:
+    rate_limiter = SimpleNamespace(acquire=AsyncMock())
     bot = SimpleNamespace(
         edit_message_text=AsyncMock(return_value=SimpleNamespace(message_id=11)),
         send_message=AsyncMock(return_value=SimpleNamespace(message_id=12)),
@@ -107,7 +108,7 @@ async def test_sender_sends_batch_with_edit_and_followups() -> None:
         answer_callback_query=AsyncMock(),
         download=AsyncMock(),
     )
-    sender = TelegramSender(bot)
+    sender = TelegramSender(bot, rate_limiter=rate_limiter)
     identity = PlatformIdentity(platform="telegram", user_id="1", chat_id="1")
     batch = PlatformMessageBatch(
         primary_message=PlatformMessage(
@@ -149,11 +150,13 @@ async def test_sender_sends_batch_with_edit_and_followups() -> None:
     bot.send_document.assert_awaited_once()
     bot.send_video.assert_awaited_once()
     bot.answer_callback_query.assert_awaited_once()
+    assert rate_limiter.acquire.await_count == 4
     assert result.primary_message_id == "11"
 
 
 @pytest.mark.asyncio()
 async def test_sender_edits_existing_message_without_fallback_send() -> None:
+    rate_limiter = SimpleNamespace(acquire=AsyncMock())
     bot = SimpleNamespace(
         edit_message_text=AsyncMock(return_value=SimpleNamespace(message_id=456)),
         send_message=AsyncMock(),
@@ -163,7 +166,7 @@ async def test_sender_edits_existing_message_without_fallback_send() -> None:
         answer_callback_query=AsyncMock(),
         download=AsyncMock(),
     )
-    sender = TelegramSender(bot)
+    sender = TelegramSender(bot, rate_limiter=rate_limiter)
     identity = PlatformIdentity(platform="telegram", user_id="1", chat_id="1")
     batch = PlatformMessageBatch(
         primary_message=PlatformMessage(
@@ -178,11 +181,13 @@ async def test_sender_edits_existing_message_without_fallback_send() -> None:
 
     bot.edit_message_text.assert_awaited_once()
     bot.send_message.assert_not_awaited()
+    rate_limiter.acquire.assert_awaited_once()
     assert result.primary_message_id == "456"
 
 
 @pytest.mark.asyncio()
 async def test_sender_treats_message_not_modified_as_success_for_edit_batch() -> None:
+    rate_limiter = SimpleNamespace(acquire=AsyncMock())
     bot = SimpleNamespace(
         edit_message_text=AsyncMock(
             side_effect=TelegramBadRequest(SimpleNamespace(), "Bad Request: message is not modified")
@@ -194,7 +199,7 @@ async def test_sender_treats_message_not_modified_as_success_for_edit_batch() ->
         answer_callback_query=AsyncMock(),
         download=AsyncMock(),
     )
-    sender = TelegramSender(bot)
+    sender = TelegramSender(bot, rate_limiter=rate_limiter)
     identity = PlatformIdentity(platform="telegram", user_id="1", chat_id="1")
     batch = PlatformMessageBatch(
         primary_message=PlatformMessage(
@@ -206,6 +211,7 @@ async def test_sender_treats_message_not_modified_as_success_for_edit_batch() ->
     result = await sender.edit_batch(identity, batch)
 
     bot.send_message.assert_not_awaited()
+    rate_limiter.acquire.assert_awaited_once()
     assert result.primary_message_id == "456"
 
 

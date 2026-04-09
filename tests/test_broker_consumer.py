@@ -57,6 +57,23 @@ def make_update_payload() -> dict[str, object]:
     }
 
 
+def make_course_message_payload() -> dict[str, object]:
+    return {
+        "event_type": "send_course_message",
+        "course_id": str(uuid4()),
+        "student_id": str(uuid4()),
+        "telegram_id": 10,
+        "message_text": "Текст сообщения студенту",
+        "parse_mode": "HTML",
+        "buttons": [
+            {
+                "text": "Тех. поддержка",
+                "url": "https://t.me/kartbllansh",
+            }
+        ],
+    }
+
+
 def make_use_case_result() -> UseCaseResult:
     return UseCaseResult(
         identity=PlatformIdentity(platform="telegram", user_id="10", chat_id="10"),
@@ -265,3 +282,50 @@ async def test_consumer_publishes_failure_result_for_update_prompt_edit_error(se
     assert published_event.telegram_message_id == 456
     assert published_event.error == "telegram edit failed"
     message.ack.assert_awaited_once()
+
+
+@pytest.mark.asyncio()
+async def test_consumer_sends_course_message_and_acks_without_publishing_result(settings) -> None:
+    broker_prompt_use_case = AsyncMock()
+    broker_prompt_use_case.execute.return_value = make_use_case_result()
+    platform_sender = AsyncMock()
+    platform_sender.send_batch.return_value = PlatformDeliveryResult(
+        primary_message_id="789",
+        sent_at=datetime(2026, 4, 9, 10, 0, 0, tzinfo=UTC),
+    )
+    consumer = ReflectionPromptConsumer(
+        settings=settings,
+        broker_prompt_use_case=broker_prompt_use_case,
+        platform_sender=platform_sender,
+    )
+    consumer._result_publisher = AsyncMock()
+    message = FakeIncomingMessage(json.dumps(make_course_message_payload()).encode("utf-8"))
+
+    await consumer.process_message(message)
+
+    platform_sender.send_batch.assert_awaited_once()
+    platform_sender.edit_batch.assert_not_called()
+    consumer._result_publisher.publish.assert_not_awaited()
+    message.ack.assert_awaited_once()
+    message.nack.assert_not_awaited()
+
+
+@pytest.mark.asyncio()
+async def test_consumer_acks_course_message_failure_without_result_publish(settings) -> None:
+    broker_prompt_use_case = AsyncMock()
+    broker_prompt_use_case.execute.return_value = make_use_case_result()
+    platform_sender = AsyncMock()
+    platform_sender.send_batch.side_effect = RuntimeError("telegram send failed")
+    consumer = ReflectionPromptConsumer(
+        settings=settings,
+        broker_prompt_use_case=broker_prompt_use_case,
+        platform_sender=platform_sender,
+    )
+    consumer._result_publisher = AsyncMock()
+    message = FakeIncomingMessage(json.dumps(make_course_message_payload()).encode("utf-8"))
+
+    await consumer.process_message(message)
+
+    consumer._result_publisher.publish.assert_not_awaited()
+    message.ack.assert_awaited_once()
+    message.nack.assert_not_awaited()

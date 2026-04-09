@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+from collections.abc import Awaitable, Callable
 from datetime import UTC, datetime
 
 from aiogram import Bot
@@ -16,13 +17,20 @@ from reflebot_telegram_bot.core.models import (
     PlatformMessageBatch,
 )
 from reflebot_telegram_bot.core.ports import PlatformCapabilities, PlatformSender
+from reflebot_telegram_bot.platforms.telegram.rate_limiter import SlidingWindowRateLimiter
 
 logger = logging.getLogger(__name__)
 
 
 class TelegramSender(PlatformSender):
-    def __init__(self, bot: Bot) -> None:
+    def __init__(
+        self,
+        bot: Bot,
+        *,
+        rate_limiter: SlidingWindowRateLimiter | None = None,
+    ) -> None:
         self._bot = bot
+        self._rate_limiter = rate_limiter or SlidingWindowRateLimiter(20)
         self._capabilities = PlatformCapabilities(
             supports_message_edit=True,
             supports_inline_buttons=True,
@@ -50,7 +58,8 @@ class TelegramSender(PlatformSender):
 
         for follow_up in batch.follow_up_messages:
             if follow_up.text:
-                await self._bot.send_message(
+                await self._throttled_request(
+                    self._bot.send_message,
                     chat_id=int(identity.chat_id),
                     text=follow_up.text,
                     parse_mode=follow_up.parse_mode,
@@ -98,7 +107,8 @@ class TelegramSender(PlatformSender):
         keyboard = self._build_keyboard(message.buttons)
         if message.edit_target_message_id is not None:
             try:
-                edited = await self._bot.edit_message_text(
+                edited = await self._throttled_request(
+                    self._bot.edit_message_text,
                     chat_id=int(identity.chat_id),
                     message_id=int(message.edit_target_message_id),
                     text=message.text or "",
@@ -109,7 +119,8 @@ class TelegramSender(PlatformSender):
             except TelegramBadRequest:
                 pass
 
-        sent = await self._bot.send_message(
+        sent = await self._throttled_request(
+            self._bot.send_message,
             chat_id=int(identity.chat_id),
             text=message.text or "",
             parse_mode=message.parse_mode,
@@ -126,7 +137,8 @@ class TelegramSender(PlatformSender):
             raise ValueError("edit_target_message_id is required for strict message edit.")
 
         try:
-            edited = await self._bot.edit_message_text(
+            edited = await self._throttled_request(
+                self._bot.edit_message_text,
                 chat_id=int(identity.chat_id),
                 message_id=int(message.edit_target_message_id),
                 text=message.text or "",
@@ -167,19 +179,32 @@ class TelegramSender(PlatformSender):
         kind = media.kind.lower()
         chat_id = int(identity.chat_id)
         if kind == "presentation":
-            await self._bot.send_document(chat_id=chat_id, document=file_ref)
+            await self._throttled_request(self._bot.send_document, chat_id=chat_id, document=file_ref)
             return
         if kind == "recording":
-            await self._bot.send_video(chat_id=chat_id, video=file_ref)
+            await self._throttled_request(self._bot.send_video, chat_id=chat_id, video=file_ref)
             return
         if kind == "qa_video":
             try:
-                await self._bot.send_video_note(chat_id=chat_id, video_note=file_ref)
+                await self._throttled_request(
+                    self._bot.send_video_note,
+                    chat_id=chat_id,
+                    video_note=file_ref,
+                )
                 return
             except TelegramBadRequest:
-                await self._bot.send_video(chat_id=chat_id, video=file_ref)
+                await self._throttled_request(self._bot.send_video, chat_id=chat_id, video=file_ref)
                 return
-        await self._bot.send_document(chat_id=chat_id, document=file_ref)
+        await self._throttled_request(self._bot.send_document, chat_id=chat_id, document=file_ref)
+
+    async def _throttled_request(
+        self,
+        method: Callable[..., Awaitable[object]],
+        /,
+        **kwargs,
+    ) -> object:
+        await self._rate_limiter.acquire()
+        return await method(**kwargs)
 
     @staticmethod
     def _build_keyboard(buttons: list[PlatformButton]) -> InlineKeyboardMarkup | None:

@@ -63,6 +63,11 @@ class Settings(BaseSettings):
         ),
         alias="UNSUPPORTED_ATTACHMENT_MESSAGE",
     )
+    telegram_global_rate_limit_per_second: int = Field(
+        default=20,
+        alias="TELEGRAM_GLOBAL_RATE_LIMIT_PER_SECOND",
+        ge=1,
+    )
     platform_adapter: str = Field(default="telegram", alias="PLATFORM_ADAPTER")
 
     @property

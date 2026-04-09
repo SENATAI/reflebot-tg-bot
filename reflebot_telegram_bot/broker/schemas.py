@@ -33,7 +33,19 @@ class UpdateReflectionPromptCommand(BaseModel):
     buttons: list[BackendButton] = Field(default_factory=list)
 
 
-ReflectionPromptCommand = SendReflectionPromptCommand | UpdateReflectionPromptCommand
+class SendCourseMessageCommand(BaseModel):
+    event_type: Literal["send_course_message"]
+    course_id: UUID
+    student_id: UUID
+    telegram_id: int
+    message_text: str
+    parse_mode: str | None = "HTML"
+    buttons: list[BackendButton] = Field(default_factory=list)
+
+
+ReflectionPromptCommand = (
+    SendReflectionPromptCommand | UpdateReflectionPromptCommand | SendCourseMessageCommand
+)
 reflection_prompt_command_adapter = TypeAdapter(ReflectionPromptCommand)
 
 

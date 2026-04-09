@@ -9,6 +9,7 @@ from reflebot_telegram_bot.core.use_cases.file import FileUseCase
 from reflebot_telegram_bot.core.use_cases.start import StartUseCase
 from reflebot_telegram_bot.core.use_cases.text import TextUseCase
 from reflebot_telegram_bot.platforms.telegram.commands import register_menu_commands
+from reflebot_telegram_bot.platforms.telegram.rate_limiter import SlidingWindowRateLimiter
 from reflebot_telegram_bot.platforms.telegram.router import build_telegram_router
 from reflebot_telegram_bot.platforms.telegram.sender import TelegramSender
 from reflebot_telegram_bot.platforms.telegram.update_mapper import TelegramUpdateMapper
@@ -27,7 +28,12 @@ class TelegramAdapter:
         text_use_case: TextUseCase,
         file_use_case: FileUseCase,
     ) -> None:
-        self.sender = TelegramSender(bot)
+        self.sender = TelegramSender(
+            bot,
+            rate_limiter=SlidingWindowRateLimiter(
+                settings.telegram_global_rate_limit_per_second,
+            ),
+        )
         self.update_mapper = TelegramUpdateMapper(bot)
         self.router = build_telegram_router(
             update_mapper=self.update_mapper,

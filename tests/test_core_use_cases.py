@@ -159,3 +159,25 @@ async def test_broker_prompt_use_case_builds_edit_batch_for_update_prompt() -> N
     assert result.identity.platform == "telegram"
     assert result.batch.primary_message.edit_target_message_id == "456"
     assert result.batch.primary_message.buttons[0].url == "https://t.me/kartbllansh"
+
+
+@pytest.mark.asyncio()
+async def test_broker_prompt_use_case_builds_batch_for_course_message() -> None:
+    command = reflection_prompt_command_adapter.validate_python(
+        {
+            "event_type": "send_course_message",
+            "course_id": "00000000-0000-0000-0000-000000000010",
+            "student_id": "00000000-0000-0000-0000-000000000020",
+            "telegram_id": 123,
+            "message_text": "Course message",
+            "parse_mode": "HTML",
+            "buttons": [{"text": "Support", "url": "https://t.me/kartbllansh"}],
+        }
+    )
+
+    result = await BrokerPromptUseCase(ResponsePlanner(), platform_name="telegram").execute(command)
+
+    assert result.identity.platform == "telegram"
+    assert result.identity.chat_id == "123"
+    assert result.batch.primary_message.text == "Course message"
+    assert result.batch.primary_message.buttons[0].url == "https://t.me/kartbllansh"

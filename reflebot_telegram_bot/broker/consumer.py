@@ -18,6 +18,7 @@ from reflebot_telegram_bot.broker.publisher import ReflectionPromptResultPublish
 from reflebot_telegram_bot.broker.schemas import (
     ReflectionPromptCommand,
     ReflectionPromptResultEvent,
+    SendCourseMessageCommand,
     UpdateReflectionPromptCommand,
     reflection_prompt_command_adapter,
 )
@@ -111,14 +112,17 @@ class ReflectionPromptConsumer:
 
         logger.info(
             (
-                "Received reflection prompt delivery_id=%s telegram_id=%s "
-                "lection_session_id=%s telegram_message_id=%s event_type=%s"
+                "Received broker command event_type=%s delivery_id=%s telegram_id=%s "
+                "student_id=%s course_id=%s lection_session_id=%s "
+                "telegram_message_id=%s"
             ),
-            command.delivery_id,
+            command.event_type,
+            getattr(command, "delivery_id", None),
             command.telegram_id,
+            getattr(command, "student_id", None),
+            getattr(command, "course_id", None),
             getattr(command, "lection_session_id", None),
             getattr(command, "telegram_message_id", None),
-            command.event_type,
         )
 
         try:
@@ -134,11 +138,38 @@ class ReflectionPromptConsumer:
                     use_case_result.batch,
                 )
         except Exception as exc:
-            await self._handle_delivery_failure(
-                command=command,
-                message=message,
-                error=exc,
+            if isinstance(command, SendCourseMessageCommand):
+                logger.exception(
+                    (
+                        "Course message delivery failed telegram_id=%s student_id=%s "
+                        "course_id=%s error=%s"
+                    ),
+                    command.telegram_id,
+                    command.student_id,
+                    command.course_id,
+                    str(exc),
+                )
+                await message.ack()
+            else:
+                await self._handle_delivery_failure(
+                    command=command,
+                    message=message,
+                    error=exc,
+                )
+            return
+
+        if isinstance(command, SendCourseMessageCommand):
+            logger.info(
+                (
+                    "Course message sent telegram_id=%s student_id=%s course_id=%s "
+                    "telegram_message_id=%s"
+                ),
+                command.telegram_id,
+                command.student_id,
+                command.course_id,
+                delivery_result.primary_message_id,
             )
+            await message.ack()
             return
 
         result_event = ReflectionPromptResultEvent(
@@ -159,11 +190,14 @@ class ReflectionPromptConsumer:
             logger.exception(
                 (
                     "Failed to publish success result after Telegram prompt operation "
-                    "delivery_id=%s telegram_id=%s lection_session_id=%s "
-                    "telegram_message_id=%s event_type=%s; acking to avoid duplicate prompt"
+                    "delivery_id=%s telegram_id=%s student_id=%s course_id=%s "
+                    "lection_session_id=%s telegram_message_id=%s event_type=%s; "
+                    "acking to avoid duplicate prompt"
                 ),
                 command.delivery_id,
                 command.telegram_id,
+                getattr(command, "student_id", None),
+                getattr(command, "course_id", None),
                 getattr(command, "lection_session_id", None),
                 delivery_result.primary_message_id,
                 command.event_type,
@@ -174,10 +208,13 @@ class ReflectionPromptConsumer:
         logger.info(
             (
                 "Reflection prompt processed delivery_id=%s telegram_id=%s "
-                "lection_session_id=%s success=%s telegram_message_id=%s event_type=%s"
+                "student_id=%s course_id=%s lection_session_id=%s "
+                "success=%s telegram_message_id=%s event_type=%s"
             ),
             command.delivery_id,
             command.telegram_id,
+            getattr(command, "student_id", None),
+            getattr(command, "course_id", None),
             getattr(command, "lection_session_id", None),
             True,
             delivery_result.primary_message_id,
@@ -195,10 +232,13 @@ class ReflectionPromptConsumer:
         logger.exception(
             (
                 "Reflection prompt delivery failed delivery_id=%s telegram_id=%s "
-                "lection_session_id=%s telegram_message_id=%s event_type=%s error=%s"
+                "student_id=%s course_id=%s lection_session_id=%s "
+                "telegram_message_id=%s event_type=%s error=%s"
             ),
             command.delivery_id,
             command.telegram_id,
+            getattr(command, "student_id", None),
+            getattr(command, "course_id", None),
             getattr(command, "lection_session_id", None),
             getattr(command, "telegram_message_id", None),
             command.event_type,
@@ -218,12 +258,15 @@ class ReflectionPromptConsumer:
             logger.exception(
                 (
                     "Failed to publish failure result delivery_id=%s telegram_id=%s "
-                    "lection_session_id=%s error=%s; requeueing because prompt "
+                    "student_id=%s course_id=%s lection_session_id=%s error=%s; "
+                    "requeueing because prompt "
                     "was not delivered successfully event_type=%s "
                     "telegram_message_id=%s"
                 ),
                 command.delivery_id,
                 command.telegram_id,
+                getattr(command, "student_id", None),
+                getattr(command, "course_id", None),
                 getattr(command, "lection_session_id", None),
                 str(publish_error),
                 command.event_type,
@@ -235,11 +278,14 @@ class ReflectionPromptConsumer:
         logger.info(
             (
                 "Published failure result delivery_id=%s telegram_id=%s "
-                "lection_session_id=%s success=%s error=%s event_type=%s "
+                "student_id=%s course_id=%s lection_session_id=%s "
+                "success=%s error=%s event_type=%s "
                 "telegram_message_id=%s"
             ),
             command.delivery_id,
             command.telegram_id,
+            getattr(command, "student_id", None),
+            getattr(command, "course_id", None),
             getattr(command, "lection_session_id", None),
             False,
             str(error),
